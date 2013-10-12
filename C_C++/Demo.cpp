@@ -66,7 +66,7 @@ results computeNoAcc(){
 
   //  sleep(1);
 
-  clock_gettime(CLOCK_MONOTONIC, &t2);
+  clock_gettime(CLOCK_REALTIME, &t2);
 
   res.duration = nanoDuration(&t2, &t1);
   
@@ -75,19 +75,24 @@ results computeNoAcc(){
 }
 
 int computeNoAccLoop(){
-  results res[N_SAMPLES];
-  double avg = 0;
-  double gflops = 0;
+	results res[N_SAMPLES];
+	double avg = 0;
+	double gflops = 0;
 
-  for(int i=0; i<N_SAMPLES; i++) {
-    res[i] = computeNoAcc();
-    avg = (avg*i + res[i].duration) / (i+1);
-    printf("Total time : %llu%s", res[i].duration, " nanoseconds\n");
-    printf("Average Total time : %le%s", avg, " nanoseconds\n");
-    gflops = FLOPCOUNT / avg / 1e9;
-    printf("Average %g%s", gflops, " GFlop/s.\n");
-  }
-  return 0;
+	for(int i=0; i<N_SAMPLES; i++) {
+		res[i] = computeNoAcc();
+		avg = (avg*i + res[i].duration) / (i+1);
+		printf("Total time : %llu%s", res[i].duration, " nanoseconds\n");
+		printf("Average Total time : %le%s", avg, " nanoseconds\n");
+		if(0!=avg){
+			gflops = FLOPCOUNT / avg / 1e9;
+			printf("Average %g%s", gflops, " GFlop/s.\n");
+		}
+		else{
+			printf("Unknown GFlop/s.\n");
+		}
+	}
+	return 0;
 }
 
 int compute()
@@ -143,8 +148,8 @@ int computeGPU()
 
 int computeCLOUD()
 {
-  printf("TODO\n");
-  return 0;
+	printf("\n\n\nTODO\n");
+	return 0;
 }
 
 int main(int argc, char** argv)
