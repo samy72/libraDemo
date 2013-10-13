@@ -14,7 +14,7 @@
 #ifdef _WIN32
 const int M_SIZE=256;
 #else
-const int M_SIZE=1024;
+const int M_SIZE=256;
 #endif
 
 typedef enum {
