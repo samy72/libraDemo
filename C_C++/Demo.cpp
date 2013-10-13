@@ -4,10 +4,21 @@
 #include <iostream>
 // Libra
 #include <Libra.h>    // C and C++ API
+
+#ifdef _WIN32>
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 #define N_SAMPLES 10
+
+#ifdef _WIN32
+#define M_SIZE 256
+#elif
 #define M_SIZE 1024
+#endif
+
 #define FLOPCOUNT ((2*M_SIZE-1)*M_SIZE*(long long)M_SIZE)
 
 typedef enum {
@@ -19,42 +30,31 @@ typedef enum {
 } TypeOfTest;
 
 typedef struct results {
-  unsigned long long duration;
+  double duration;
   double avg;
   double sigma2;
 } results;
 
 
-unsigned long long nanoDuration(struct timespec *t1, struct timespec *t2) {
-  return ((t1->tv_sec * 1000000000) + t1->tv_nsec) - ((t2->tv_sec * 1000000000) + t2->tv_nsec);
-}
-
 results computeNoAcc(){
   int i, j, k;
   float A[M_SIZE][M_SIZE], B[M_SIZE][M_SIZE], C[M_SIZE][M_SIZE], s=0;
-  double gflops;
-  unsigned long long duration;
-  long long flopCount;
-  struct timespec t1, t2;
+  double startTime, time, duration;
+
   results res;
-
-  printf("***********************************\n\n");
-  printf("SGEMM : BASIC matrix multiplication\n\n");
-  printf("***********************************\n\n");
-
   memset(&res, 0, sizeof(results));
 
   // float 1.0 initialization
 
   for (  i = 0 ; i < M_SIZE ; i++ )
     for ( j = 0 ; j < M_SIZE ; j++ )
-      A[i][j] =0.0;
+      A[i][j] =1.0;
   
   for ( i = 0 ; i < M_SIZE ; i++ )
     for ( j = 0 ; j < M_SIZE ; j++ )
-      B[i][j] = 0.0;
-  
-  clock_gettime(CLOCK_MONOTONIC, &t1);
+      B[i][j] = 1.0;
+
+  	startTime = libra_GetTime();
 
   for ( i = 0 ; i < M_SIZE ; i++ )
     for ( j = 0 ; j < M_SIZE ; j++ )
@@ -66,33 +66,38 @@ results computeNoAcc(){
 
   //  sleep(1);
 
-  clock_gettime(CLOCK_REALTIME, &t2);
-
-  res.duration = nanoDuration(&t2, &t1);
-  
-  /* Compute a performance measurement. Gigaflop / s. */
+	res.duration = libra_GetTime() - startTime;
+	//printf("Total time : %g%s", res.duration*1000, " milliseconds\n");
   return res;
 }
 
 int computeNoAccLoop(){
-	results res[N_SAMPLES];
-	double avg = 0;
-	double gflops = 0;
+  results res[N_SAMPLES];
+  double avg = 0;
+  double gflops = 0;
 
-	for(int i=0; i<N_SAMPLES; i++) {
-		res[i] = computeNoAcc();
-		avg = (avg*i + res[i].duration) / (i+1);
-		printf("Total time : %llu%s", res[i].duration, " nanoseconds\n");
-		printf("Average Total time : %le%s", avg, " nanoseconds\n");
-		if(0!=avg){
+  printf("\n");
+  printf("*******************************************\n\n");
+  printf("SGEMM : WITHOUT LIBRA matrix multiplication\n\n");
+  printf("*******************************************\n\n");
+
+
+  for(int i=0; i<N_SAMPLES; i++) {
+    res[i] = computeNoAcc();
+    avg = (avg*i + res[i].duration) / (i+1);
+    //printf("Total time : %g%s", res[i].duration*1000, " milliseconds\n");
+    if (N_SAMPLES-1 == i){
+		printf("Average Total time : %g%s", avg*1000, " milliseconds\n");
+		if (0!=avg){
 			gflops = FLOPCOUNT / avg / 1e9;
-			printf("Average %g%s", gflops, " GFlop/s.\n");
+			printf("%g%s", gflops, " GFlop/s.\n");
 		}
 		else{
 			printf("Unknown GFlop/s.\n");
 		}
 	}
-	return 0;
+  }
+  return 0;
 }
 
 int compute()
@@ -122,10 +127,12 @@ int compute()
 	flopCount = (2*M_SIZE-1)*M_SIZE*(long long)M_SIZE;
 	gflops = flopCount / time / 1e9;
 	printf("%g%s", gflops, " GFlop/s.\n");
+	return 0;
 }
 
 int computeCPU()
 {
+	printf("\n");
 	printf("*********************************\n\n");
 	printf("SGEMM : CPU matrix multiplication\n\n");
 	printf("*********************************\n\n");
@@ -137,6 +144,7 @@ int computeCPU()
 
 int computeGPU()
 {
+	printf("\n");
 	printf("*********************************\n\n");
 	printf("SGEMM : GPU matrix multiplication\n\n");
 	printf("*********************************\n\n");
@@ -148,8 +156,8 @@ int computeGPU()
 
 int computeCLOUD()
 {
-	printf("\n\n\nTODO\n");
-	return 0;
+  printf("TODO\n");
+  return 0;
 }
 
 int main(int argc, char** argv)
@@ -163,16 +171,17 @@ int main(int argc, char** argv)
 	  else if (!strcmp(argv[2], "CLOUD")) tot = CLOUD;
 	}
 
-	if((ALL==tot) || (NONE==tot)) computeNoAccLoop();
-
 	if (libra_Init(argc, argv) != 0)
 		return 1;
 
 	libra_SetDefaultDataType(GFLOAT32);
 
+	printf("MATRIX SIZE = %d\n", M_SIZE);
+	
+	if((ALL==tot) || (NONE==tot)) computeNoAccLoop();
 	if((ALL==tot) || (CPU==tot)) computeCPU();
 	if((ALL==tot) || (GPU==tot)) computeGPU();
-	if((ALL==tot) || (CLOUD==tot)) computeCLOUD();
+	//if((ALL==tot) || (CLOUD==tot)) computeCLOUD();
 
 	libra_Shutdown();
 
