@@ -11,11 +11,7 @@
 #include <unistd.h>
 #endif
 
-#ifdef _WIN32
 const int M_SIZE=256;
-#else
-const int M_SIZE=256;
-#endif
 
 typedef enum {
 	ALL,
@@ -32,12 +28,14 @@ typedef struct results {
 } results;
 
 
-results computeNL(){
+results computeBasic(){
   int i, j, k, warm;
   float A[M_SIZE][M_SIZE], B[M_SIZE][M_SIZE], C[M_SIZE][M_SIZE], s;
   long long flopCount;
   double startTime, time, gflops;
   results res;
+
+  printf("\n*********** Basic ***********\n");
 
   memset(&res, 0, sizeof(results));
   
@@ -45,37 +43,39 @@ results computeNL(){
   
   for (  i = 0 ; i < M_SIZE ; i++ )
     for ( j = 0 ; j < M_SIZE ; j++ )
-      A[i][j] =1.0;
+      A[i][j] = 1.0;
   
   for ( i = 0 ; i < M_SIZE ; i++ )
     for ( j = 0 ; j < M_SIZE ; j++ )
       B[i][j] = 1.0;
   
-  // 4 Warmup
-  s = 0.0;
-  for (warm = 0; warm<4; warm++){
-    for ( i = 0 ; i < M_SIZE ; i++ ){
-      for ( j = 0 ; j < M_SIZE ; j++ ){
-	for ( k = 0 ; k < M_SIZE ; k++ ) s = s + A[i][k]*B[k][j];
-	C[i][j] = s;
-	s = 0.0;
-      }
+  // 4 Warmup the cache ?
+  for ( i = 0 ; i < M_SIZE ; i++ ){
+    for ( j = 0 ; j < M_SIZE ; j++ ){
+		C[i][j] = 0.0;
+		for ( k = 0 ; k < M_SIZE ; k++ ) C[i][j] += A[i][k]*B[k][j];
     }
   }
   
   // Measure
   startTime = libra_GetTime();
   
-  s= 0.0;
   for ( i = 0 ; i < M_SIZE ; i++ ){
     for ( j = 0 ; j < M_SIZE ; j++ ){
-      for ( k = 0 ; k < M_SIZE ; k++ ) s = s + A[i][k]*B[k][j];
-      C[i][j] = s;
-      s = 0.0;
+		C[i][j] = 0.0;
+		for ( k = 0 ; k < M_SIZE ; k++ ) C[i][j] += A[i][k]*B[k][j];
     }
   }
   //sleep(1);
   time = libra_GetTime() - startTime;
+  /* print result
+    for ( i = 0 ; i < M_SIZE ; i++ ){
+		for ( j = 0 ; j < M_SIZE ; j++ ){
+			printf("%g ", C[i][j]);
+		}
+		printf("\n");
+	}
+	*/
   printf("Total time : %g%s", time*1000, " milliseconds\n");
 
   /* Compute a performance measurement. Gigaflop / s. */
@@ -85,17 +85,6 @@ results computeNL(){
 
   res.duration = time;
   return res;
-}
-
-int computeNoLibra(){
-
-  printf("\n");
-  printf("*******************************************\n\n");
-  printf("SGEMM : WITHOUT LIBRA matrix multiplication\n\n");
-  printf("*******************************************\n\n");
-
-  computeNL();  
-  return 0;
 }
 
 int compute()
@@ -125,37 +114,76 @@ int compute()
 	flopCount = (2*M_SIZE-1)*M_SIZE*(long long)M_SIZE;
 	gflops = flopCount / time / 1e9;
 	printf("%g%s", gflops, " GFlop/s.\n");
-	return 0;
+	return 1;
 }
 
 int computeCPU()
 {
-	printf("\n");
-	printf("*********************************\n\n");
-	printf("SGEMM : CPU matrix multiplication\n\n");
-	printf("*********************************\n\n");
-
-	libra_SetCurrentDevice(CPU_DEVICE_1);
+	printf("\n********** CPU 1 **********\n");
+	if(!libra_SetCurrentDevice(CPU_DEVICE_1)){
+		printf("\nCPU 1 Not Available\n");
+		return 0;
+	}
+	printf("\nCPU Backend SET\n");
 	compute();
-	return 0;
+	return 1;
 }
 
 int computeGPU()
 {
-	printf("\n");
-	printf("*********************************\n\n");
-	printf("SGEMM : GPU matrix multiplication\n\n");
-	printf("*********************************\n\n");
+	printf("\n********** GPU 1 **********\n");
+	if(!libra_SetCurrentDevice(GPU_DEVICE_1)){
+		printf("\nGPU 1 Not Available\n");
+		return 0;
+	}
 
-	libra_SetCurrentDevice(GPU_DEVICE_1);
-	compute();
-	return 0;
+	if(libra_SetCurrentBackend(CUDA_BACKEND)){
+		printf("\nCUDA Backend SET\n");
+		compute();
+	}
+	else{
+		printf("\nCUDA Backend cannot be set\n");
+	}
+
+	if(libra_SetCurrentBackend(OPENCL_BACKEND)){
+		printf("\nOpenCL Backend SET\n");
+		compute();
+	}
+	else{
+		printf("\nOpenCL Backend cannot be set\n");
+	}
+
+	if(libra_SetCurrentBackend(OPENGL_BACKEND)){
+		printf("\nOpenGL Backend SET\n");
+		compute();
+	}
+	else{
+		printf("\nOpenGL Backend cannot be set\n");
+	}
+
+	return 1;
 }
 
 int computeCLOUD()
 {
-  printf("TODO\n");
-  return 0;
+	printf("\n********** CLOUD **********\n");
+	
+	if(!libra_SetCurrentComputeNode("localhost", 44444)){
+		printf("\nCloud cannot be SET\n");
+		printf("*********************\n");
+		return 0;
+	}
+	
+	if(libra_SetCurrentBackend(OPENGL_BACKEND)){
+		printf("\nOpenGL Backend SET\n");
+		compute();
+		printf("\n*********************\n");
+		return 1;
+	}
+	else{
+		printf("\nOpenGL Backend cant be set\n");
+		return 0;
+	}
 }
 
 int main(int argc, char** argv)
@@ -169,17 +197,25 @@ int main(int argc, char** argv)
 	  else if (!strcmp(argv[2], "CLOUD")) tot = CLOUD;
 	}
 
-	if (libra_Init(argc, argv) != 0)
-		return 1;
+	if (libra_Init(argc, argv) != 0) return 1;
 
 	libra_SetDefaultDataType(GFLOAT32);
 
-	printf("MATRIX SIZE = %d\n", M_SIZE);
+	printf("SGEMM: Single-precision General Matrix Multiply\n");
+	printf("Compute MxM with a Square MATRIX SIZE = %d\n", M_SIZE);
+	printf("Same code but many ways:\n\n");
+	printf("- Basic C language computation: the for(i, j, k) loop\n");
+	printf("- CPU device Backend\n");
+	printf("- GPU / CUDA Backend\n");
+	printf("- GPU / OpenCL Backend\n");
+	printf("- GPU / OpenGL Backend\n");
+	printf("- Cloud Computing on local node\n");
+	printf("\nLet's Start...\n");
 	
-	if((ALL==tot) || (NONE==tot)) computeNoLibra();
+	if((ALL==tot) || (NONE==tot)) computeBasic();
 	if((ALL==tot) || (CPU==tot)) computeCPU();
 	if((ALL==tot) || (GPU==tot)) computeGPU();
-	//if((ALL==tot) || (CLOUD==tot)) computeCLOUD();
+	if((ALL==tot) || (CLOUD==tot)) computeCLOUD();
 
 	libra_Shutdown();
 
