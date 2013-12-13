@@ -164,38 +164,29 @@ int computeGPU()
 	return 1;
 }
 
-int computeCLOUD()
+int computeCLOUD(int argc, char **argv)
 {
 	printf("\n********** CLOUD **********\n");
-	
-	if(!libra_SetCurrentComputeNode("localhost", 44444)){
-		printf("\nCloud cannot be SET\n");
+
+	if (1==argc){
+		if (!libra_SetCurrentComputeNode("192.168.1.3", 12345)){
+			printf("\Cant connet to node, %s\n", libra_GetLastErrorMessage());
+			printf("*********************\n");
+			return 0;
+		}
+	}
+	else if (libra_Init(argc, argv) != 0){
+		printf("\nServer init Failed\n");
 		printf("*********************\n");
 		return 0;
 	}
-	
-	if(libra_SetCurrentBackend(OPENGL_BACKEND)){
-		printf("\nOpenGL Backend SET\n");
-		compute();
-		printf("\n*********************\n");
-		return 1;
-	}
-	else{
-		printf("\nOpenGL Backend cant be set\n");
-		return 0;
-	}
+	compute();
+	return 1;
 }
 
 int main(int argc, char** argv)
 {
 	TypeOfTest tot = ALL;
-
-	if (2 == argc){
-	  if (!strcmp(argv[1], "CPU")) tot = CPU;
-	  else if (!strcmp(argv[1], "NONE")) tot = NONE;
-	  else if (!strcmp(argv[1], "GPU")) tot = GPU;
-	  else if (!strcmp(argv[2], "CLOUD")) tot = CLOUD;
-	}
 
 	if (libra_Init(argc, argv) != 0) return 1;
 
@@ -209,13 +200,13 @@ int main(int argc, char** argv)
 	printf("- GPU / CUDA Backend\n");
 	printf("- GPU / OpenCL Backend\n");
 	printf("- GPU / OpenGL Backend\n");
-	printf("- Cloud Computing on local node\n");
+	printf("- Cloud Computing on local node. Ex: -nc, -a, 127.0.0.1, -p, 12345, -b, CPU_BACKEND, -remoteCompute\n");
 	printf("\nLet's Start...\n");
 	
 	if((ALL==tot) || (NONE==tot)) computeBasic();
 	if((ALL==tot) || (CPU==tot)) computeCPU();
 	if((ALL==tot) || (GPU==tot)) computeGPU();
-	if((ALL==tot) || (CLOUD==tot)) computeCLOUD();
+	if((ALL==tot) || (CLOUD==tot)) computeCLOUD(argc, argv);
 
 	libra_Shutdown();
 
