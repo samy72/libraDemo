@@ -169,7 +169,7 @@ int computeCLOUD(int argc, char **argv)
 	printf("\n********** CLOUD **********\n");
 
 	if (1==argc){
-		if (!libra_SetCurrentComputeNode("192.168.1.3", 12345)){
+		if (!libra_SetCurrentComputeNode("192.168.1.4", 12345)){
 			printf("\Cant connet to node, %s\n", libra_GetLastErrorMessage());
 			printf("*********************\n");
 			return 0;
